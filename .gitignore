@@ -1,0 +1,6 @@
+.DS_Store
+FridaGadget.dylib
+.theos
+obj
+packages
+*.ipa
