@@ -31,7 +31,8 @@ static NSString *mitmDirectory;
     {
 		NSData* body = request.HTTPBody;		
 
-		NSString *fileName = [NSString stringWithFormat:@"%lu.req.raw.bin", (long)CACurrentMediaTime()];
+		long long timestamp = (long long)([[NSDate date] timeIntervalSince1970] * 1000.0);
+		NSString *fileName = [NSString stringWithFormat:@"%lld.req.raw.bin", timestamp];
 		NSLog(@"[mitm] Save to file: %@", fileName);
 
 		NSString *fileWithPath = [NSString stringWithFormat:@"%@/%@", mitmDirectory, fileName];
