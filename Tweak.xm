@@ -41,7 +41,11 @@ static NSString *mitmDirectory;
 
         void (^hacked)(NSData *data, NSURLResponse *response, NSError *error) = ^void(NSData *data, NSURLResponse *response, NSError *error)
         {
-
+			NSString *resFileName = [NSString stringWithFormat:@"%lld.res.raw.bin", timestamp];
+			NSString *resFileWithPath = [NSString stringWithFormat:@"%@/%@", mitmDirectory, resFileName];
+			[data writeToFile:resFileWithPath atomically:NO];
+			
+			
             // Invoke the original handler
             completionHandler(data, response, error);
         };
