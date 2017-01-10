@@ -1,7 +1,5 @@
 #import <QuartzCore/QuartzCore.h>
 
-static NSString *mitmDirectory;
-
 /**
  * Remove cert pinning
  **/
@@ -19,6 +17,8 @@ static NSString *mitmDirectory;
 /**
  * Hook network calls
  **/
+
+static NSString *mitmDirectory;
 
 %hook __NSCFURLSession
 
@@ -58,6 +58,58 @@ static NSString *mitmDirectory;
 }
 
 %end
+
+//////////////////////
+
+/**
+ * Hook UI
+ **/
+
+bool hideUI = true;
+UIButton *hideUIButton;
+
+%hook UnityView
+
+@interface UnityView <UIAlertViewDelegate>
+- (NSArray *)subviews;
+- (void)addSubview:(UIView *)subview;
+- (void)setNeedsLayout;
+- (void)layoutIfNeeded;
+@end
+
+%new
+- (void)toggleHideUI
+{
+    hideUI = !hideUI;
+    [self setNeedsLayout];
+    [self layoutIfNeeded];
+}
+
+- (void)layoutSubviews
+{
+    %orig;
+
+	if (!hideUIButton) {
+		hideUIButton = [[UIButton alloc] initWithFrame:CGRectMake(15, 25, 34, 34)];
+        hideUIButton.backgroundColor = [UIColor whiteColor];
+        hideUIButton.layer.cornerRadius = hideUIButton.frame.size.width/2;
+        [hideUIButton addTarget:self action:@selector(toggleHideUI) forControlEvents:UIControlEventTouchUpInside];
+        [self addSubview:hideUIButton];
+	}
+
+    [UIView animateWithDuration:0.3 animations:^{
+        hideUIButton.backgroundColor = hideUI ? [UIColor clearColor] : [UIColor colorWithWhite:1.0 alpha:0.85];
+	}
+}
+
+%end
+
+//////////////////////
+
+/**
+ * App is starting
+ **/
+
 
 %ctor {
 	NSLog(@"[mitm] Pokemon Go Tweak Initializing...");
