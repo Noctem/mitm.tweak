@@ -45,24 +45,19 @@ static NSString *mitmDirectory;
 			NSString *resFileWithPath = [NSString stringWithFormat:@"%@/%@", mitmDirectory, resFileName];
 			[data writeToFile:resFileWithPath atomically:NO];
 			
-			
             // Invoke the original handler
             completionHandler(data, response, error);
         };
         
         // Call the hacked handler
         return %orig(request, hacked);
-    }
-	else if ([host containsString:@"sso.pokemon.com"])
-	{
-		NSLog(@"[mitm] request to sso.pokemon.com - %@", [request forHTTPHeaderField:'user-agent']);
-		NSLog(@"[mitm] request to sso.pokemon.com - %@", [request forHTTPHeaderField:'User-Agent']);
 	}
     
     return %orig(request, completionHandler);
 }
 
 %end
+
 
 %ctor {
 	NSLog(@"[mitm] Pokemon Go Tweak Initializing...");
@@ -74,13 +69,18 @@ static NSString *mitmDirectory;
 	NSString *documents = [paths objectAtIndex:0];
 
 	NSLog(@"[mitm] Clean old directories");
+	NSCalendar *cal = [NSCalendar currentCalendar];    
+	NSDate *sevenDaysAgo = [cal dateByAddingUnit:NSCalendarUnitDay 
+											value:-7
+											toDate:[NSDate date] 
+											options:0];
 
 	NSArray * directoryContents = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:documents error:&error];
 	for (NSString *folder in directoryContents) {
 		if ([folder hasPrefix:@"mitm."]) {
 			long long timestamp = [[folder substringFromIndex:5] longLongValue];
 			NSDate *mitmdate = [NSDate dateWithTimeIntervalSince1970:(long long)(timestamp/1000)];
-			NSDate *sevenDaysAgo = [[NSDate date] dateByAddingTimeInterval:-7*24*60*60];
+
 			if ([mitmdate compare:sevenDaysAgo] == NSOrderedAscending) {
 				NSString *oldFolder = [documents stringByAppendingPathComponent:folder];
 				NSLog(@"[mitm] Session too old, deleting %@", oldFolder);
