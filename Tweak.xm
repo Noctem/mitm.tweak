@@ -29,7 +29,7 @@ static NSString *mitmDirectory;
     // Validate request
     if ([host containsString:@"pgorelease.nianticlabs.com"])
     {
-		NSData* body = request.HTTPBody;		
+		NSData* body = request.HTTPBody;
 
 		long long timestamp = (long long)([[NSDate date] timeIntervalSince1970] * 1000.0);
 		NSString *fileName = [NSString stringWithFormat:@"%lld.req.raw.bin", timestamp];
@@ -53,6 +53,11 @@ static NSString *mitmDirectory;
         // Call the hacked handler
         return %orig(request, hacked);
     }
+	else if ([host containsString:@"sso.pokemon.com"])
+	{
+		NSLog(@"[mitm] request to sso.pokemon.com - %@", [request forHTTPHeaderField:'user-agent']);
+		NSLog(@"[mitm] request to sso.pokemon.com - %@", [request forHTTPHeaderField:'User-Agent']);
+	}
     
     return %orig(request, completionHandler);
 }
