@@ -1,4 +1,5 @@
 #import <QuartzCore/QuartzCore.h>
+#import <UIKit/UIKit.h>
 
 static NSString *mitmDirectory;
 
@@ -58,6 +59,7 @@ static NSString *mitmDirectory;
 
 %end
 
+////
 
 %ctor {
 	NSLog(@"[mitm] Pokemon Go Tweak Initializing...");
@@ -101,4 +103,6 @@ static NSString *mitmDirectory;
 			attributes:nil
 			error:&error];
 	}
+
+	NSLog(@"[mitm] Init OK.");
 }
