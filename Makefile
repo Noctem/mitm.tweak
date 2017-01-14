@@ -8,7 +8,7 @@ BUNDLE_ID = com.niico.pokemongo
 pokemongo_FILES = Tweak.xm
 pokemongo_IPA = pokemongo.v0.51.2.ipa
 
-pokemongo_FRAMEWORKS=QuartzCore
+pokemongo_FRAMEWORKS=QuartzCore Security
 
 # pokemongo_INJECT_DYLIBS=FridaGadget.dylib
 

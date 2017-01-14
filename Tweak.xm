@@ -1,5 +1,6 @@
 #import <QuartzCore/QuartzCore.h>
 #import <UIKit/UIKit.h>
+#import <Security/Security.h>
 
 static NSString *mitmDirectory;
 
@@ -15,6 +16,22 @@ static NSString *mitmDirectory;
 
 %end
 
+/*
+	Define the new SecTrustEvaluate function
+*/
+OSStatus new_SecTrustEvaluate(SecTrustRef trust, SecTrustResultType *result);
+OSStatus new_SecTrustEvaluate(SecTrustRef trust, SecTrustResultType *result)
+{
+	NSLog(@"trustme: Intercepting SecTrustEvaluate Call");
+	*result = kSecTrustResultProceed;
+	return errSecSuccess;
+}
+
+/*
+	Function signature for original SecTrustEvaluate
+*/
+static OSStatus(*original_SecTrustEvaluate)(SecTrustRef trust, SecTrustResultType *result);
+
 //////////////////////
 
 /**
@@ -27,7 +44,6 @@ static NSString *mitmDirectory;
 {
     NSString* host = [request URL].host;
     
-    // Validate request
     if ([host containsString:@"pgorelease.nianticlabs.com"])
     {
 		NSData* body = request.HTTPBody;
@@ -63,6 +79,8 @@ static NSString *mitmDirectory;
 
 %ctor {
 	NSLog(@"[mitm] Pokemon Go Tweak Initializing...");
+
+	MSHookFunction((void *)SecTrustEvaluate, (void *)new_SecTrustEvaluate, (void **)&original_SecTrustEvaluate);
 
 	// todo: actually handle error :)
 	NSError *error = nil;
