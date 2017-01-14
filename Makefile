@@ -9,6 +9,7 @@ pokemongo_FILES = Tweak.xm
 pokemongo_IPA = pokemongo.v0.51.2.ipa
 
 pokemongo_FRAMEWORKS=QuartzCore Security
+pokemongo_USE_FISHHOOK=1
 
 # pokemongo_INJECT_DYLIBS=FridaGadget.dylib
 

@@ -1,6 +1,7 @@
 #import <QuartzCore/QuartzCore.h>
 #import <UIKit/UIKit.h>
 #import <Security/Security.h>
+#import <fishhook.h>
 
 static NSString *mitmDirectory;
 
@@ -22,7 +23,6 @@ static NSString *mitmDirectory;
 OSStatus new_SecTrustEvaluate(SecTrustRef trust, SecTrustResultType *result);
 OSStatus new_SecTrustEvaluate(SecTrustRef trust, SecTrustResultType *result)
 {
-	NSLog(@"trustme: Intercepting SecTrustEvaluate Call");
 	*result = kSecTrustResultProceed;
 	return errSecSuccess;
 }
@@ -80,7 +80,10 @@ static OSStatus(*original_SecTrustEvaluate)(SecTrustRef trust, SecTrustResultTyp
 %ctor {
 	NSLog(@"[mitm] Pokemon Go Tweak Initializing...");
 
-	MSHookFunction((void *)SecTrustEvaluate, (void *)new_SecTrustEvaluate, (void **)&original_SecTrustEvaluate);
+	// hook for ssl pinning
+	rebind_symbols((struct rebinding[1]){
+		{"SecTrustEvaluate", (void *)new_SecTrustEvaluate, (void **)&original_SecTrustEvaluate}
+	}, 1);
 
 	// todo: actually handle error :)
 	NSError *error = nil;
