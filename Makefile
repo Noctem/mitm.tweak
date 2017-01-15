@@ -10,7 +10,7 @@ pokemongo_IPA = pokemongo.v0.51.2.ipa
 
 pokemongo_FRAMEWORKS=QuartzCore Security
 pokemongo_USE_FISHHOOK=1
-
+pokemongo_USE_FLEX=1
 # pokemongo_INJECT_DYLIBS=FridaGadget.dylib
 
 include $(THEOS_MAKE_PATH)/tweak.mk

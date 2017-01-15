@@ -13,15 +13,60 @@ static NSString *mitmDirectory;
 %hook NIATrustedCertificatesAuthenticator
 
 -(void)URLSession:(NSURLSession *)session didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition, NSURLCredential * _Nullable))completionHandler {
+	NSLog(@"[mitm] NIATrustedCertificatesAuthenticator.didReceiveChallenge");
     NSURLCredential *credential = [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust];
     completionHandler(NSURLSessionAuthChallengeUseCredential, credential);
 }
 
 %end
 
-/*
-	Define the new SecTrustEvaluate function
-*/
+%hook PGPTrustedCertificatesAuthenticator
+
+-(void)URLSession:(NSURLSession *)session didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition, NSURLCredential * _Nullable))completionHandler {
+	NSLog(@"[mitm] PGPTrustedCertificatesAuthenticator.didReceiveChallenge");
+    NSURLCredential *credential = [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust];
+    completionHandler(NSURLSessionAuthChallengeUseCredential, credential);
+}
+
+%end
+
+%hook NSURLConnectionDelegate
+
+- (void)connection:(NSURLConnection *)connection willSendRequestForAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge
+{
+	NSLog(@"[mitm] NSURLConnectionDelegate connection:willSendRequestForAuthenticationChallenge:");
+	if([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodServerTrust])
+    {
+	    [challenge.sender useCredential:[NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust] forAuthenticationChallenge:challenge];
+    }
+}
+
+- (BOOL)connection:(NSURLConnection *)connection canAuthenticateAgainstProtectionSpace:(NSURLProtectionSpace *)protectionSpace{
+    NSLog(@"[mitm] NSURLConnectionDelegate connection:canAuthenticateAgainstProtectionSpace:");
+    if([[protectionSpace authenticationMethod] isEqualToString:NSURLAuthenticationMethodServerTrust])
+    {
+        return YES;
+    }
+
+    return NO;
+}
+
+- (void)connection:(NSURLConnection *)connection didReceiveAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge {
+    NSLog(@"[mitm] NSURLConnectionDelegate connection:didReceiveAuthenticationChallenge");
+    if([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodServerTrust])
+    {
+        [challenge.sender useCredential:[NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust] forAuthenticationChallenge:challenge];
+    }
+}
+
+
+%end
+
+/**
+ * Low level cert pinning bypass
+ */
+static OSStatus(*original_SecTrustEvaluate)(SecTrustRef trust, SecTrustResultType *result);
+
 OSStatus new_SecTrustEvaluate(SecTrustRef trust, SecTrustResultType *result);
 OSStatus new_SecTrustEvaluate(SecTrustRef trust, SecTrustResultType *result)
 {
@@ -30,10 +75,55 @@ OSStatus new_SecTrustEvaluate(SecTrustRef trust, SecTrustResultType *result)
 	return errSecSuccess;
 }
 
-/*
-	Function signature for original SecTrustEvaluate
-*/
-static OSStatus(*original_SecTrustEvaluate)(SecTrustRef trust, SecTrustResultType *result);
+static CFDictionaryRef (*orig_SecTrustGetExceptionForCertificateAtIndex)(SecTrustRef trust, CFIndex ix);
+
+static CFDictionaryRef new_SecTrustGetExceptionForCertificateAtIndex(SecTrustRef trust, CFIndex ix);
+static CFDictionaryRef new_SecTrustGetExceptionForCertificateAtIndex(SecTrustRef trust, CFIndex ix) {
+	NSLog(@"[mitm] SecTrustGetExceptionForCertificateAtIndex");
+	return NULL;
+}
+
+/**
+ * Another cert pinning bypass
+ */
+static OSStatus (*orig_SSLSetSessionOption)(SSLContextRef context, SSLSessionOption option, Boolean value);
+static OSStatus new_SSLSetSessionOption(SSLContextRef context, SSLSessionOption option, Boolean value);
+static OSStatus new_SSLSetSessionOption(SSLContextRef context, SSLSessionOption option, Boolean value) {
+    // Remove the ability to modify the value of the kSSLSessionOptionBreakOnServerAuth option
+	NSLog(@"[mitm] SSLSetSessionOption");
+    if (option == kSSLSessionOptionBreakOnServerAuth)
+        return noErr;
+    else
+        return orig_SSLSetSessionOption(context, option, value);
+}
+
+
+static SSLContextRef (*orig_SSLCreateContext) (CFAllocatorRef alloc, SSLProtocolSide protocolSide, SSLConnectionType connectionType);
+
+static SSLContextRef new_SSLCreateContext(CFAllocatorRef alloc, SSLProtocolSide protocolSide, SSLConnectionType connectionType);
+static SSLContextRef new_SSLCreateContext(CFAllocatorRef alloc, SSLProtocolSide protocolSide, SSLConnectionType connectionType) {
+	NSLog(@"[mitm] SSLCreateContext");
+    SSLContextRef sslContext = orig_SSLCreateContext(alloc, protocolSide, connectionType);
+    // Immediately set the kSSLSessionOptionBreakOnServerAuth option in order to disable cert validation
+    orig_SSLSetSessionOption(sslContext, kSSLSessionOptionBreakOnServerAuth, true);
+    return sslContext;
+}
+
+static OSStatus (*orig_SSLHandshake)(SSLContextRef context);
+
+static OSStatus new_SSLHandshake(SSLContextRef context);
+static OSStatus new_SSLHandshake(SSLContextRef context) {
+	NSLog(@"[mitm] SSLHandshake");
+    OSStatus result = orig_SSLHandshake(context);
+    if (result == errSSLServerAuthCompleted) 
+	{
+        return orig_SSLHandshake(context);
+    }
+    else
+	{
+        return result;
+	}
+}
 
 //////////////////////
 
@@ -71,7 +161,7 @@ static OSStatus(*original_SecTrustEvaluate)(SecTrustRef trust, SecTrustResultTyp
 {
     NSString* host = [request URL].host;
     
-	NSLog(@"dataTaskWithRequest %@", host);
+	NSLog(@"[mitm] __NSCFURLSession.dataTaskWithRequest %@", host);
     if ([host containsString:@"pgorelease.nianticlabs.com"])
     {
 		NSData* body = request.HTTPBody;
@@ -108,18 +198,36 @@ static OSStatus(*original_SecTrustEvaluate)(SecTrustRef trust, SecTrustResultTyp
 %hook NSOutputStream
 
 + (id)outputStreamWithURL:(NSURL *)url append:(BOOL)shouldAppend {
-	id origResult = %orig(url, shouldAppend);
 	NSLog(@"[mitm] outputStreamWithURL %@", url);
-	return origResult;
+	return %orig;
 }
 
 
 - (id)initWithURL:(NSURL *)url append:(BOOL)shouldAppend {
-	id origResult = %orig(url, shouldAppend);
 	NSLog(@"[mitm] initWithURL %@", url);
-	return origResult;
+	return %orig;
 }
 
+%end
+
+//////////////////////
+
+%hook NSDictionary
+
+-(BOOL) writeToURL:(NSURL *)aURL atomically:(BOOL)flag {
+	NSLog(@"[mitm] NSDictionary.writeToURL %@", aURL);
+	return %orig;
+}
+%end
+
+//////////////////////
+
+%hook NSData
+
+-(BOOL) writeToURL:(NSURL *)aURL options:(NSDataWritingOptions)mask error:(NSError **)errorPtr {
+	NSLog(@"[mitm] NSData.writeToURL %@", aURL);
+	return %orig;
+}
 %end
 
 //////////////////////
@@ -140,12 +248,18 @@ static int (*original_getaddrinfo)(const char *hostname, const char *servname, c
 
 int new_getaddrinfo(const char *hostname, const char *servname, const struct addrinfo *hints, struct addrinfo **reslist);
 int new_getaddrinfo(const char *hostname, const char *servname, const struct addrinfo *hints, struct addrinfo **reslist) {
-	NSLog(@"[mitm] getaddrinfo %s", hostname);
-	int ret = original_getaddrinfo(hostname, servname, hints, reslist);
-	struct addrinfo *res;
-	for (res = *reslist; res; res = res->ai_next) {
-		NSLog(@"[mitm] addr %s", res->ai_canonname);
+	NSLog(@"[mitm] getaddrinfo %s - %s", hostname, servname);
+	int ret;
+	if (strncmp(hostname, "sso.pokemon.com", 15) == 0) {
+		NSLog(@"[mitm] redirect to local");
+		ret = original_getaddrinfo("192.168.0.46", NULL, NULL, reslist);
+	} else {
+		ret = original_getaddrinfo(hostname, servname, hints, reslist);
 	}
+	// struct addrinfo *res;
+	// for (res = *reslist; res; res = res->ai_next) {
+	// 	NSLog(@"[mitm] addr %s", res->ai_canonname);
+	// }
 	return ret;
 }
 
@@ -171,17 +285,63 @@ OSStatus new_SSLSetIOFuncs(SSLContextRef context, SSLReadFunc readFunc, SSLWrite
 
 //////////////////////
 
+static void (*orig_CFStreamCreatePairWithSocketToHost)(CFAllocatorRef alloc, CFStringRef host, UInt32 port, CFReadStreamRef *readStream, CFWriteStreamRef *writeStream);
+
+void new_CFStreamCreatePairWithSocketToHost(CFAllocatorRef alloc, CFStringRef host, UInt32 port, CFReadStreamRef *readStream, CFWriteStreamRef *writeStream);
+void new_CFStreamCreatePairWithSocketToHost(CFAllocatorRef alloc, CFStringRef host, UInt32 port, CFReadStreamRef *readStream, CFWriteStreamRef *writeStream) {
+    NSLog(@"[mitm] CFStreamCreatePairWithSocketToHost: %s:%d", (char *)host, (unsigned int)port);
+    orig_CFStreamCreatePairWithSocketToHost(alloc, host, port, readStream, writeStream);
+}
+
+static void (*orig_CFStreamCreatePairWithSocketToCFHost)(CFAllocatorRef alloc, CFHostRef host, SInt32 port, CFReadStreamRef  _Nullable *readStream, CFWriteStreamRef  _Nullable *writeStream);
+
+void new_CFStreamCreatePairWithSocketToCFHost(CFAllocatorRef alloc, CFHostRef host, SInt32 port, CFReadStreamRef  _Nullable *readStream, CFWriteStreamRef  _Nullable *writeStream);
+void new_CFStreamCreatePairWithSocketToCFHost(CFAllocatorRef alloc, CFHostRef host, SInt32 port, CFReadStreamRef  _Nullable *readStream, CFWriteStreamRef  _Nullable *writeStream) {
+	NSLog(@"[mitm] CFStreamCreatePairWithSocketToCFHost: %@:%d", host, (unsigned int)port);
+	orig_CFStreamCreatePairWithSocketToCFHost(alloc, host, port, readStream, writeStream);
+}
+
+//////////////////////
+
+static void (*orig_CFHTTPMessageSetBody)(CFHTTPMessageRef message, CFDataRef bodyData);
+
+void new_CFHTTPMessageSetBody(CFHTTPMessageRef message, CFDataRef bodyData);
+void new_CFHTTPMessageSetBody(CFHTTPMessageRef message, CFDataRef bodyData) {
+	NSLog(@"[mitm] CFHTTPMessageSetBody %@ - %@", message, bodyData);
+	orig_CFHTTPMessageSetBody(message, bodyData);
+}
+
+//////////////////////
+
+static CFHTTPMessageRef (*orig_CFHTTPMessageCreateRequest)(CFAllocatorRef alloc, CFStringRef requestMethod, CFURLRef url, CFStringRef httpVersion);
+
+CFHTTPMessageRef new_CFHTTPMessageCreateRequest(CFAllocatorRef alloc, CFStringRef requestMethod, CFURLRef url, CFStringRef httpVersion);
+CFHTTPMessageRef new_CFHTTPMessageCreateRequest(CFAllocatorRef alloc, CFStringRef requestMethod, CFURLRef url, CFStringRef httpVersion) {
+	NSLog(@"[mitm] CFHTTPMessageCreateRequest %@", url);
+	return orig_CFHTTPMessageCreateRequest(alloc, requestMethod, url, httpVersion);
+}
+
+//////////////////////
+
 %ctor {
 	NSLog(@"[mitm] Pokemon Go Tweak Initializing...");
 
 	// various system hook
 	rebind_symbols((struct rebinding[]){
 		{"SecTrustEvaluate", (void *)new_SecTrustEvaluate, (void **)&original_SecTrustEvaluate},
+		{"SecTrustGetExceptionForCertificateAtIndex", (void *)new_SecTrustGetExceptionForCertificateAtIndex, (void **)&orig_SecTrustGetExceptionForCertificateAtIndex},
 		{"gethostbyname", (void *)new_gethostbyname, (void **)&original_gethostbyname},
 		{"getaddrinfo", (void *)new_getaddrinfo, (void **)&original_getaddrinfo},
 		{"SSLWrite", (void *)new_SSLWrite, (void **)&original_SSLWrite},
-		{"SSLSetIOFuncs", (void *)new_SSLSetIOFuncs, (void **)&original_SSLSetIOFuncs}
-	}, 5);
+		{"SSLSetIOFuncs", (void *)new_SSLSetIOFuncs, (void **)&original_SSLSetIOFuncs},
+		{"CFStreamCreatePairWithSocketToHost", (void *)new_CFStreamCreatePairWithSocketToHost, (void **)&orig_CFStreamCreatePairWithSocketToHost},
+		{"CFStreamCreatePairWithSocketToCFHost", (void *)new_CFStreamCreatePairWithSocketToCFHost, (void **)&orig_CFStreamCreatePairWithSocketToCFHost},
+		{"CFHTTPMessageSetBody", (void *)new_CFHTTPMessageSetBody, (void **)&orig_CFHTTPMessageSetBody},
+		{"CFHTTPMessageCreateRequest", (void *)new_CFHTTPMessageCreateRequest, (void **)&orig_CFHTTPMessageCreateRequest},
+		{"SSLHandshake", (void *)new_SSLHandshake, (void **)&orig_SSLHandshake},
+		{"SSLCreateContext", (void *)new_SSLCreateContext, (void **)&orig_SSLCreateContext},
+		{"SSLSetSessionOption", (void *)new_SSLSetSessionOption, (void **)&orig_SSLSetSessionOption}	
+	}, 13);
 
 	// todo: actually handle error :)
 	NSError *error = nil;
