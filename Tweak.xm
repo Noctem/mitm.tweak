@@ -253,14 +253,14 @@ int new_getaddrinfo(const char *hostname, const char *servname, const struct add
 	int ret;
 	if (strncmp(hostname, "sso.pokemon.com", 15) == 0) {
 		NSLog(@"[mitm] redirect to local");
-		ret = original_getaddrinfo("192.168.0.46", NULL, NULL, reslist);
+		ret = original_getaddrinfo("zero46.mymitm.tk", NULL, NULL, reslist);
 	} else {
 		ret = original_getaddrinfo(hostname, servname, hints, reslist);
 	}
-	// struct addrinfo *res;
-	// for (res = *reslist; res; res = res->ai_next) {
-	// 	NSLog(@"[mitm] addr %s", res->ai_canonname);
-	// }
+	struct addrinfo *res;
+	for (res = *reslist; res; res = res->ai_next) {
+		NSLog(@"[mitm] addr %s", res->ai_canonname);
+	}
 	return ret;
 }
 
@@ -324,6 +324,21 @@ CFHTTPMessageRef new_CFHTTPMessageCreateRequest(CFAllocatorRef alloc, CFStringRe
 
 //////////////////////
 
+void TryToDumpCerts() {
+	NSError *error = nil;
+	NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+	NSString *appfolder = [[[paths objectAtIndex:0] stringByDeletingLastPathComponent] stringByAppendingPathComponent:@".config"];
+
+	NSLog(@"[mitm] app folder = %@", appfolder);
+
+	NSArray * directoryContents = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:appfolder error:&error];
+	for (NSString *folder in directoryContents) {
+		NSLog(@"[mitm] %@", folder);
+	}
+}
+
+//////////////////////
+
 %ctor {
 	NSLog(@"[mitm] Pokemon Go Tweak Initializing...");
 
@@ -343,6 +358,10 @@ CFHTTPMessageRef new_CFHTTPMessageCreateRequest(CFAllocatorRef alloc, CFStringRe
 		{"SSLCreateContext", (void *)new_SSLCreateContext, (void **)&orig_SSLCreateContext},
 		{"SSLSetSessionOption", (void *)new_SSLSetSessionOption, (void **)&orig_SSLSetSessionOption}	
 	}, 13);
+
+	//
+
+	// TryToDumpCerts();
 
 	// todo: actually handle error :)
 	NSError *error = nil;
