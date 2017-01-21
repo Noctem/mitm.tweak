@@ -251,7 +251,7 @@ int new_getaddrinfo(const char *hostname, const char *servname, const struct add
 int new_getaddrinfo(const char *hostname, const char *servname, const struct addrinfo *hints, struct addrinfo **reslist) {
 	NSLog(@"[mitm] getaddrinfo %s - %s", hostname, servname);
 	int ret;
-	if (strncmp(hostname, "sso.pokemon.com", 15) == 0) {
+	if (false && strncmp(hostname, "sso.pokemon.com", 15) == 0) {
 		NSLog(@"[mitm] redirect to local");
 		ret = original_getaddrinfo("zero46.mymitm.tk", NULL, NULL, reslist);
 	} else {
@@ -283,6 +283,24 @@ OSStatus new_SSLSetIOFuncs(SSLContextRef context, SSLReadFunc readFunc, SSLWrite
 	OSStatus ret = original_SSLSetIOFuncs(context, readFunc, writeFunc);
 	return ret;
 }
+
+
+typedef CFTypeRef CFHTTPConnectionRef;
+static CFHTTPConnectionRef (*orig_CFHTTPConnectionCreate)(CFAllocatorRef alloc, CFStringRef host, SInt32 port, UInt32 connectionType, CFDictionaryRef streamProperties);
+CFHTTPConnectionRef new_CFHTTPConnectionCreate(CFAllocatorRef alloc, CFStringRef host, SInt32 port, UInt32 connectionType, CFDictionaryRef streamProperties);
+CFHTTPConnectionRef new_CFHTTPConnectionCreate(CFAllocatorRef alloc, CFStringRef host, SInt32 port, UInt32 connectionType, CFDictionaryRef streamProperties) {
+	NSLog(@"[mitm] CFHTTPConnectionCreate - %@", host);
+	return orig_CFHTTPConnectionCreate(alloc, host, port, connectionType, streamProperties);
+}
+
+static CFStringRef (*orig__CFNetworkUserAgentString)(void);
+CFStringRef new__CFNetworkUserAgentString(void);
+CFStringRef new__CFNetworkUserAgentString(void) {
+	CFStringRef useragent = orig__CFNetworkUserAgentString();
+	NSLog(@"[mitm] _CFNetworkUserAgentString - %@", useragent);
+	return useragent;
+}
+
 
 //////////////////////
 
@@ -364,8 +382,9 @@ void TryToDumpCerts() {
 		{"SSLHandshake", (void *)new_SSLHandshake, (void **)&orig_SSLHandshake},
 		{"SSLCreateContext", (void *)new_SSLCreateContext, (void **)&orig_SSLCreateContext},
 		{"SSLSetSessionOption", (void *)new_SSLSetSessionOption, (void **)&orig_SSLSetSessionOption},
-		{"CFURLCreateWithString", (void *)new_CFURLCreateWithString, (void **)orig_CFURLCreateWithString}
-	}, 14);
+		{"CFHTTPConnectionCreate", (void *)new_CFHTTPConnectionCreate, (void **)orig_CFHTTPConnectionCreate},
+		{"_CFNetworkUserAgentString", (void *)new__CFNetworkUserAgentString, (void **)orig__CFNetworkUserAgentString}
+	}, 15);
 
 	//
 
