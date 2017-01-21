@@ -322,6 +322,13 @@ CFHTTPMessageRef new_CFHTTPMessageCreateRequest(CFAllocatorRef alloc, CFStringRe
 	return orig_CFHTTPMessageCreateRequest(alloc, requestMethod, url, httpVersion);
 }
 
+static CFURLRef (*orig_CFURLCreateWithString)(CFAllocatorRef allocator, CFStringRef URLString, CFURLRef baseURL);
+CFURLRef new_CFURLCreateWithString(CFAllocatorRef allocator, CFStringRef URLString, CFURLRef baseURL);
+CFURLRef new_CFURLCreateWithString(CFAllocatorRef allocator, CFStringRef URLString, CFURLRef baseURL) {
+	NSLog(@"[mitm] CFURLCreateWithString %@ - %@", URLString, baseURL);
+	return orig_CFURLCreateWithString(allocator, URLString, baseURL);
+}
+
 //////////////////////
 
 void TryToDumpCerts() {
@@ -356,8 +363,9 @@ void TryToDumpCerts() {
 		{"CFHTTPMessageCreateRequest", (void *)new_CFHTTPMessageCreateRequest, (void **)&orig_CFHTTPMessageCreateRequest},
 		{"SSLHandshake", (void *)new_SSLHandshake, (void **)&orig_SSLHandshake},
 		{"SSLCreateContext", (void *)new_SSLCreateContext, (void **)&orig_SSLCreateContext},
-		{"SSLSetSessionOption", (void *)new_SSLSetSessionOption, (void **)&orig_SSLSetSessionOption}	
-	}, 13);
+		{"SSLSetSessionOption", (void *)new_SSLSetSessionOption, (void **)&orig_SSLSetSessionOption},
+		{"CFURLCreateWithString", (void *)new_CFURLCreateWithString, (void **)orig_CFURLCreateWithString}
+	}, 14);
 
 	//
 
