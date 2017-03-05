@@ -461,6 +461,21 @@ CFURLRef new_CFURLCreateWithString(CFAllocatorRef allocator, CFStringRef URLStri
 
 //////////////////////
 
+%hook NSBundle
+
+- (NSString *)bundleIdentifier {
+	NSString *bundle = %orig;
+	if ([bundle hasPrefix:@"com.niico.pokemongo"]) {
+		bundle = "com.nianticlabs.pokemongo";
+	}
+	NSLog(@"[mitm] bundleIdentifier - %@", bundle);
+	return bundle;
+}
+
+%end
+
+//////////////////////
+
 %ctor {
 	NSLog(@"[mitm] Pokemon Go Tweak Initializing...");
 
