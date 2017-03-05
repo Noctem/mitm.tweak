@@ -1,5 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <QuartzCore/QuartzCore.h>
+#include <CFNetwork/CFNetwork.h>
+#include <CFNetwork/CFProxySupport.h>
 #import <UIKit/UIKit.h>
 #import <Security/Security.h>
 #import <fishhook.h>
@@ -59,7 +61,6 @@ static NSString *mitmDirectory;
         [challenge.sender useCredential:[NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust] forAuthenticationChallenge:challenge];
     }
 }
-
 
 %end
 
@@ -152,9 +153,51 @@ static OSStatus new_SSLHandshake(SSLContextRef context) {
 
 //////////////////////
 
+%hook UnityWWWConnectionDelegate
+
+- (id)initWithURL:(NSURL*)url udata:(void*)udata {
+	NSLog(@"[mitm] UnityWWWConnectionDelegate.initWithURL %@", url);
+	return %orig(url, udata);
+}
+
+%end
+
+//////////////////////
+
+%hook UnityWWWConnectionSelfSignedCertDelegate 
+
+- (void)connection:(NSURLConnection*)connection didReceiveResponse:(NSURLResponse*)response {
+	NSLog(@"[mitm] UnityWWWConnectionSelfSignedCertDelegate.didReceiveResponse");
+	%orig(connection, response);
+}
+
+- (BOOL)connection:(NSURLConnection*)connection handleAuthenticationChallenge:(NSURLAuthenticationChallenge*)challenge
+{
+	NSLog(@"[mitm] UnityWWWConnectionSelfSignedCertDelegate.handleAuthenticationChallenge");
+	return %orig(connection, challenge);
+}
+
+%end
+
+//////////////////////
+
 /**
  * Hook network calls
  **/
+
+%hook __NSURLSessionLocal
+
+- (id)dataTaskWithRequest:(NSURLRequest *)request completionHandler:(void (^)(NSData *data, NSURLResponse *response, NSError *error))completionHandler
+{
+    NSString* host = [request URL].host;
+    
+	NSLog(@"[mitm] __NSURLSessionLocal.dataTaskWithRequest %@", host);
+	return %orig(request, completionHandler);
+}
+
+%end
+
+//////////////////////
 
 %hook __NSCFURLSession
 
@@ -191,6 +234,75 @@ static OSStatus new_SSLHandshake(SSLContextRef context) {
     
     return %orig(request, completionHandler);
 }
+
+%end
+
+//////////////////////
+
+%hook USURLLoader
+
+
+- (void)connection:(NSURLConnection *)connection willSendRequestForAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge
+{
+	NSLog(@"[mitm] USURLLoader connection:willSendRequestForAuthenticationChallenge:");
+	if([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodServerTrust])
+    {
+	    [challenge.sender useCredential:[NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust] forAuthenticationChallenge:challenge];
+    }
+}
+
+- (BOOL)connection:(NSURLConnection *)connection canAuthenticateAgainstProtectionSpace:(NSURLProtectionSpace *)protectionSpace{
+    NSLog(@"[mitm] USURLLoader connection:canAuthenticateAgainstProtectionSpace:");
+    if([[protectionSpace authenticationMethod] isEqualToString:NSURLAuthenticationMethodServerTrust])
+    {
+        return YES;
+    }
+
+    return NO;
+}
+
+- (void)connection:(NSURLConnection *)connection didReceiveAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge {
+    NSLog(@"[mitm] USURLLoader connection:didReceiveAuthenticationChallenge");
+    if([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodServerTrust])
+    {
+        [challenge.sender useCredential:[NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust] forAuthenticationChallenge:challenge];
+    }
+}
+
+
+%end
+
+//////////////////////
+
+%hook CRNSURLConnectionDelegateProxy
+
+- (void)connection:(NSURLConnection *)connection willSendRequestForAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge
+{
+	NSLog(@"[mitm] USURLLoader connection:willSendRequestForAuthenticationChallenge:");
+	if([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodServerTrust])
+    {
+	    [challenge.sender useCredential:[NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust] forAuthenticationChallenge:challenge];
+    }
+}
+
+- (BOOL)connection:(NSURLConnection *)connection canAuthenticateAgainstProtectionSpace:(NSURLProtectionSpace *)protectionSpace{
+    NSLog(@"[mitm] USURLLoader connection:canAuthenticateAgainstProtectionSpace:");
+    if([[protectionSpace authenticationMethod] isEqualToString:NSURLAuthenticationMethodServerTrust])
+    {
+        return YES;
+    }
+
+    return NO;
+}
+
+- (void)connection:(NSURLConnection *)connection didReceiveAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge {
+    NSLog(@"[mitm] USURLLoader connection:didReceiveAuthenticationChallenge");
+    if([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodServerTrust])
+    {
+        [challenge.sender useCredential:[NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust] forAuthenticationChallenge:challenge];
+    }
+}
+
 
 %end
 
@@ -349,21 +461,6 @@ CFURLRef new_CFURLCreateWithString(CFAllocatorRef allocator, CFStringRef URLStri
 
 //////////////////////
 
-void TryToDumpCerts() {
-	NSError *error = nil;
-	NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-	NSString *appfolder = [[[paths objectAtIndex:0] stringByDeletingLastPathComponent] stringByAppendingPathComponent:@".config"];
-
-	NSLog(@"[mitm] app folder = %@", appfolder);
-
-	NSArray * directoryContents = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:appfolder error:&error];
-	for (NSString *folder in directoryContents) {
-		NSLog(@"[mitm] %@", folder);
-	}
-}
-
-//////////////////////
-
 %ctor {
 	NSLog(@"[mitm] Pokemon Go Tweak Initializing...");
 
@@ -385,10 +482,6 @@ void TryToDumpCerts() {
 		{"CFHTTPConnectionCreate", (void *)new_CFHTTPConnectionCreate, (void **)orig_CFHTTPConnectionCreate},
 		{"_CFNetworkUserAgentString", (void *)new__CFNetworkUserAgentString, (void **)orig__CFNetworkUserAgentString}
 	}, 15);
-
-	//
-
-	// TryToDumpCerts();
 
 	// todo: actually handle error :)
 	NSError *error = nil;
