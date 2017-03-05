@@ -398,8 +398,8 @@ void TryToDumpCerts() {
 
 	NSLog(@"[mitm] Clean old directories");
 	NSCalendar *cal = [NSCalendar currentCalendar];    
-	NSDate *sevenDaysAgo = [cal dateByAddingUnit:NSCalendarUnitDay 
-											value:-7
+	NSDate *someDaysAgo = [cal dateByAddingUnit:NSCalendarUnitDay 
+											value:-3
 											toDate:[NSDate date] 
 											options:0];
 
@@ -409,7 +409,7 @@ void TryToDumpCerts() {
 			long long timestamp = [[folder substringFromIndex:5] longLongValue];
 			NSDate *mitmdate = [NSDate dateWithTimeIntervalSince1970:(long long)(timestamp/1000)];
 
-			if ([mitmdate compare:sevenDaysAgo] == NSOrderedAscending) {
+			if ([mitmdate compare:someDaysAgo] == NSOrderedAscending) {
 				NSString *oldFolder = [documents stringByAppendingPathComponent:folder];
 				NSLog(@"[mitm] Session too old, deleting %@", oldFolder);
 				[[NSFileManager defaultManager] removeItemAtPath:oldFolder error:nil];
