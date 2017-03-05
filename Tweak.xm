@@ -461,18 +461,18 @@ CFURLRef new_CFURLCreateWithString(CFAllocatorRef allocator, CFStringRef URLStri
 
 //////////////////////
 
-%hook NSBundle
+// %hook NSBundle
 
-- (NSString *)bundleIdentifier {
-	NSString *bundle = %orig;
-	if ([bundle hasPrefix:@"com.niico.pokemongo"]) {
-		bundle = "com.nianticlabs.pokemongo";
-	}
-	NSLog(@"[mitm] bundleIdentifier - %@", bundle);
-	return bundle;
-}
+// - (NSString *)bundleIdentifier {
+// 	NSString *bundle = %orig;
+// 	if ([bundle hasPrefix:@"com.niico.pokemongo"]) {
+// 		bundle = @"com.nianticlabs.pokemongo";
+// 	}
+// 	NSLog(@"[mitm] bundleIdentifier - %@", bundle);
+// 	return bundle;
+// }
 
-%end
+// %end
 
 //////////////////////
 
