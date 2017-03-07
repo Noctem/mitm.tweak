@@ -67,9 +67,16 @@ static NSString *mitmDirectory;
 /**
  * Low level cert pinning bypass
  */
-static OSStatus(*original_SecTrustEvaluate)(SecTrustRef trust, SecTrustResultType *result);
 
-OSStatus new_SecTrustEvaluate(SecTrustRef trust, SecTrustResultType *result);
+static OSStatus (*original_tls_helper_create_peer_trust)(void *hdsk, bool server, SecTrustRef *trustRef);
+static OSStatus new_tls_helper_create_peer_trust(void *hdsk, bool server, SecTrustRef *trustRef)
+{
+    NSLog(@"[mitm] tls_helper_create_peer_trust");
+    return errSecSuccess;
+}
+
+
+static OSStatus(*original_SecTrustEvaluate)(SecTrustRef trust, SecTrustResultType *result);
 OSStatus new_SecTrustEvaluate(SecTrustRef trust, SecTrustResultType *result)
 {
 	NSLog(@"[mitm] SecTrustEvaluate");
@@ -78,8 +85,6 @@ OSStatus new_SecTrustEvaluate(SecTrustRef trust, SecTrustResultType *result)
 }
 
 static CFDictionaryRef (*orig_SecTrustGetExceptionForCertificateAtIndex)(SecTrustRef trust, CFIndex ix);
-
-static CFDictionaryRef new_SecTrustGetExceptionForCertificateAtIndex(SecTrustRef trust, CFIndex ix);
 static CFDictionaryRef new_SecTrustGetExceptionForCertificateAtIndex(SecTrustRef trust, CFIndex ix) {
 	NSLog(@"[mitm] SecTrustGetExceptionForCertificateAtIndex");
 	return NULL;
@@ -363,7 +368,7 @@ int new_getaddrinfo(const char *hostname, const char *servname, const struct add
 int new_getaddrinfo(const char *hostname, const char *servname, const struct addrinfo *hints, struct addrinfo **reslist) {
 	NSLog(@"[mitm] getaddrinfo %s - %s", hostname, servname);
 	int ret;
-	if (false && strncmp(hostname, "sso.pokemon.com", 15) == 0) {
+	if (strncmp(hostname, "sso.pokemon.com", 15) == 0) {
 		NSLog(@"[mitm] redirect to local");
 		ret = original_getaddrinfo("zero46.mymitm.tk", NULL, NULL, reslist);
 	} else {
@@ -495,8 +500,9 @@ CFURLRef new_CFURLCreateWithString(CFAllocatorRef allocator, CFStringRef URLStri
 		{"SSLCreateContext", (void *)new_SSLCreateContext, (void **)&orig_SSLCreateContext},
 		{"SSLSetSessionOption", (void *)new_SSLSetSessionOption, (void **)&orig_SSLSetSessionOption},
 		{"CFHTTPConnectionCreate", (void *)new_CFHTTPConnectionCreate, (void **)orig_CFHTTPConnectionCreate},
-		{"_CFNetworkUserAgentString", (void *)new__CFNetworkUserAgentString, (void **)orig__CFNetworkUserAgentString}
-	}, 15);
+		{"_CFNetworkUserAgentString", (void *)new__CFNetworkUserAgentString, (void **)orig__CFNetworkUserAgentString},
+		{"tls_helper_create_peer_trust", (void *)new_tls_helper_create_peer_trust, (void **)original_tls_helper_create_peer_trust}
+	}, 16);
 
 	// todo: actually handle error :)
 	NSError *error = nil;
