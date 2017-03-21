@@ -1,16 +1,20 @@
-MODULES = jailed
 include $(THEOS)/makefiles/common.mk
 
-TWEAK_NAME = pokemongo
-DISPLAY_NAME = mitm.login
-BUNDLE_ID = com.niico.pokemongo.login
+TARGET = iphone:clang:9.0:9.0
+TARGET_IPHONEOS_DEPLOYMENT_VERSION = 9.0
+THEOS_TARGET_IPHONEOS_DEPLOYMENT_VERSION = 9.0
+TARGET_VERSION = 9.0
+ARCHS = arm64
 
-pokemongo_FILES = Tweak.xm
-pokemongo_IPA = pokemongo.v0.57.4.ipa
 
-pokemongo_FRAMEWORKS=QuartzCore Security CFNetwork
-pokemongo_USE_FISHHOOK=1
-pokemongo_USE_FLEX=1
-# pokemongo_INJECT_DYLIBS=FridaGadget.dylib
+TWEAK_NAME = mitm
+DISPLAY_NAME = mitm
+BUNDLE_ID = com.niico.mitm
 
-include $(THEOS_MAKE_PATH)/tweak.mk
+mitm_FILES = Tweak.xm
+
+mitm_FRAMEWORKS=QuartzCore Security CFNetwork
+mitm_USE_FLEX=1
+
+include $(THEOS)/makefiles/tweak.mk
+include $(THEOS)/makefiles/aggregate.mk
