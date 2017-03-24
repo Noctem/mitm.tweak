@@ -186,6 +186,17 @@ static OSStatus new_SSLHandshake(SSLContextRef context) {
 
 //////////////////////
 
+%hook CRRequest
+
+- (id)initWithBaseURL:(id)arg1 andEndPoint:(id)arg2 andRequestType:(int)arg3 {
+	NSLog(@"[mitm] CRRequest.initWithBaseURL %@", arg1);
+	return %orig(arg1, arg2, arg3);
+}
+
+%end
+
+//////////////////////
+
 /**
  * Hook network calls
  **/
@@ -368,7 +379,7 @@ int new_getaddrinfo(const char *hostname, const char *servname, const struct add
 int new_getaddrinfo(const char *hostname, const char *servname, const struct addrinfo *hints, struct addrinfo **reslist) {
 	NSLog(@"[mitm] getaddrinfo %s - %s", hostname, servname);
 	int ret;
-	if (strncmp(hostname, "sso.pokemon.com", 15) == 0) {
+	if (false && strncmp(hostname, "sso.pokemon.com", 15) == 0) {
 		NSLog(@"[mitm] redirect to local");
 		ret = original_getaddrinfo("zero46.mymitm.tk", NULL, NULL, reslist);
 	} else {
